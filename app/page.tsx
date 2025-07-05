@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, QrCode, Scan, Plus, Printer, Eye } from "lucide-react"
+import { Download, QrCode, Scan, Plus, Printer, Eye, Camera } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { QRScanner } from "@/components/qr-scanner"
 
 interface QRCode {
   _id: string
@@ -23,6 +24,8 @@ export default function Dashboard() {
   const [quantity, setQuantity] = useState(1)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
+  const [recentScans, setRecentScans] = useState<string[]>([])
 
   useEffect(() => {
     fetchQRCodes()
@@ -225,6 +228,13 @@ export default function Dashboard() {
     window.open(`/scan/${qrId}`, "_blank")
   }
 
+  const handleScanResult = (result: string) => {
+    console.log("Scan result:", result)
+    setRecentScans((prev) => [result, ...prev.slice(0, 4)]) // Keep last 5 scans
+    setShowScanner(false)
+    fetchQRCodes() // Refresh to show updated scan status
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
   }
@@ -237,10 +247,39 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">QR Dashboard</h1>
-          <p className="text-muted-foreground">Generate and manage your QR codes</p>
+          <p className="text-muted-foreground">Generate, scan, and manage your QR codes</p>
         </div>
-        <QrCode className="h-8 w-8 text-primary" />
+        <div className="flex items-center gap-4">
+          <Button onClick={() => setShowScanner(true)} className="flex items-center gap-2" size="lg">
+            <Camera className="h-5 w-5" />
+            Scan QR Code
+          </Button>
+          <QrCode className="h-8 w-8 text-primary" />
+        </div>
       </div>
+
+      {/* Recent Scans */}
+      {recentScans.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Scan className="h-5 w-5" />
+              Recent Scans
+            </CardTitle>
+            <CardDescription>Recently scanned QR codes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {recentScans.map((scan, index) => (
+                <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                  <span className="font-mono text-sm">{scan.slice(0, 50)}...</span>
+                  <Badge variant="outline">Scan #{index + 1}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -395,6 +434,9 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* QR Scanner Modal */}
+      {showScanner && <QRScanner onScanResult={handleScanResult} onClose={() => setShowScanner(false)} />}
 
       <Toaster />
     </div>
