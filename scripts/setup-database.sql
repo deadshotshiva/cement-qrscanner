@@ -1,0 +1,22 @@
+-- MongoDB doesn't use SQL, but here's the equivalent setup information
+-- 
+-- Database: qr-dashboard
+-- Collection: qrcodes
+-- 
+-- Document structure:
+-- {
+--   _id: ObjectId,
+--   uniqueId: String (unique),
+--   scanned: Boolean (default: false),
+--   scannedAt: Date (nullable),
+--   createdAt: Date (default: now)
+-- }
+-- 
+-- Indexes:
+-- - uniqueId: unique index
+-- - createdAt: descending index for sorting
+-- 
+-- To set up MongoDB:
+-- 1. Install MongoDB locally or use MongoDB Atlas
+-- 2. Create a database named 'qr-dashboard'
+-- 3. The application will automatically create the collection and indexes
