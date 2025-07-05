@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, QrCode, Scan, Plus } from "lucide-react"
+import { Download, QrCode, Scan, Plus, Printer, Eye } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 interface QRCode {
   _id: string
@@ -30,12 +31,29 @@ export default function Dashboard() {
   const fetchQRCodes = async () => {
     setLoading(true)
     try {
+      console.log("🔄 Fetching QR codes...")
       const response = await fetch("/api/qr/list")
+      console.log("📡 Response status:", response.status)
+
       if (response.ok) {
         const data = await response.json()
-        setQrCodes(data.qrCodes)
+        console.log("📊 Fetched data:", data)
+        setQrCodes(data.qrCodes || [])
+        toast({
+          title: "Success",
+          description: `Loaded ${data.qrCodes?.length || 0} QR codes`,
+        })
+      } else {
+        const errorData = await response.json()
+        console.error("❌ Failed to fetch QR codes:", errorData)
+        toast({
+          title: "Error",
+          description: "Failed to fetch QR codes",
+          variant: "destructive",
+        })
       }
     } catch (error) {
+      console.error("❌ Error fetching QR codes:", error)
       toast({
         title: "Error",
         description: "Failed to fetch QR codes",
@@ -58,6 +76,7 @@ export default function Dashboard() {
 
     setGenerating(true)
     try {
+      console.log(`🔄 Generating ${quantity} QR codes...`)
       const response = await fetch("/api/qr/generate", {
         method: "POST",
         headers: {
@@ -66,18 +85,27 @@ export default function Dashboard() {
         body: JSON.stringify({ quantity }),
       })
 
+      console.log("📡 Generate response status:", response.status)
+      const data = await response.json()
+      console.log("📊 Generate response data:", data)
+
       if (response.ok) {
-        const data = await response.json()
         toast({
           title: "Success",
           description: `Generated ${data.count} QR codes successfully`,
         })
-        fetchQRCodes()
+        fetchQRCodes() // Refresh the list
         setQuantity(1)
       } else {
-        throw new Error("Failed to generate QR codes")
+        console.error("❌ Generation failed:", data)
+        toast({
+          title: "Error",
+          description: data.error || "Failed to generate QR codes",
+          variant: "destructive",
+        })
       }
     } catch (error) {
+      console.error("❌ Error generating QR codes:", error)
       toast({
         title: "Error",
         description: "Failed to generate QR codes",
@@ -90,6 +118,7 @@ export default function Dashboard() {
 
   const downloadQR = async (qrId: string) => {
     try {
+      console.log(`📥 Downloading QR code: ${qrId}`)
       const response = await fetch(`/api/qr/download/${qrId}`)
       if (response.ok) {
         const blob = await response.blob()
@@ -101,14 +130,99 @@ export default function Dashboard() {
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
+        toast({
+          title: "Success",
+          description: "QR code downloaded successfully",
+        })
+      } else {
+        throw new Error("Download failed")
       }
     } catch (error) {
+      console.error("❌ Error downloading QR code:", error)
       toast({
         title: "Error",
         description: "Failed to download QR code",
         variant: "destructive",
       })
     }
+  }
+
+  const printQR = async (qrId: string) => {
+    try {
+      console.log(`🖨️ Printing QR code: ${qrId}`)
+      const response = await fetch(`/api/qr/download/${qrId}`)
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+
+        // Create a new window for printing
+        const printWindow = window.open("", "_blank")
+        if (printWindow) {
+          printWindow.document.write(`
+            <html>
+              <head>
+                <title>QR Code - ${qrId}</title>
+                <style>
+                  body { 
+                    margin: 0; 
+                    padding: 20px; 
+                    display: flex; 
+                    flex-direction: column; 
+                    align-items: center; 
+                    font-family: Arial, sans-serif; 
+                  }
+                  img { 
+                    max-width: 300px; 
+                    height: auto; 
+                    border: 1px solid #ddd; 
+                    padding: 10px; 
+                  }
+                  .qr-info { 
+                    margin-top: 10px; 
+                    text-align: center; 
+                  }
+                  @media print {
+                    body { margin: 0; padding: 10px; }
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="qr-info">
+                  <h2>QR Code</h2>
+                  <p>ID: ${qrId.slice(0, 8)}...</p>
+                  <p>Scan URL: ${window.location.origin}/scan/${qrId}</p>
+                </div>
+                <img src="${url}" alt="QR Code" onload="window.print(); window.close();" />
+              </body>
+            </html>
+          `)
+          printWindow.document.close()
+        }
+
+        // Clean up the blob URL after a delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url)
+        }, 1000)
+
+        toast({
+          title: "Success",
+          description: "QR code sent to printer",
+        })
+      } else {
+        throw new Error("Print failed")
+      }
+    } catch (error) {
+      console.error("❌ Error printing QR code:", error)
+      toast({
+        title: "Error",
+        description: "Failed to print QR code",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const viewQR = (qrId: string) => {
+    window.open(`/scan/${qrId}`, "_blank")
   }
 
   const formatDate = (dateString: string) => {
@@ -185,6 +299,15 @@ export default function Dashboard() {
               <Plus className="h-4 w-4" />
               {generating ? "Generating..." : "Generate"}
             </Button>
+            <Button
+              onClick={fetchQRCodes}
+              disabled={loading}
+              variant="outline"
+              className="flex items-center gap-2 bg-transparent"
+            >
+              <QrCode className="h-4 w-4" />
+              {loading ? "Loading..." : "Refresh"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -192,15 +315,20 @@ export default function Dashboard() {
       {/* QR Codes Table */}
       <Card>
         <CardHeader>
-          <CardTitle>QR Codes</CardTitle>
+          <CardTitle>QR Codes ({totalCount})</CardTitle>
           <CardDescription>Manage and track your generated QR codes</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Loading...</div>
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-2">Loading QR codes...</p>
+            </div>
           ) : qrCodes.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No QR codes generated yet. Create some to get started!
+              <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">No QR codes found</p>
+              <p>Generate some QR codes to get started!</p>
             </div>
           ) : (
             <div className="rounded-md border">
@@ -232,6 +360,7 @@ export default function Dashboard() {
                             size="sm"
                             onClick={() => downloadQR(qr.uniqueId)}
                             className="flex items-center gap-1"
+                            title="Download QR Code"
                           >
                             <Download className="h-3 w-3" />
                             Download
@@ -239,10 +368,21 @@ export default function Dashboard() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(`/scan/${qr.uniqueId}`, "_blank")}
+                            onClick={() => printQR(qr.uniqueId)}
                             className="flex items-center gap-1"
+                            title="Print QR Code"
                           >
-                            <Scan className="h-3 w-3" />
+                            <Printer className="h-3 w-3" />
+                            Print
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => viewQR(qr.uniqueId)}
+                            className="flex items-center gap-1"
+                            title="View QR Code"
+                          >
+                            <Eye className="h-3 w-3" />
                             View
                           </Button>
                         </div>
@@ -255,6 +395,8 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      <Toaster />
     </div>
   )
 }
